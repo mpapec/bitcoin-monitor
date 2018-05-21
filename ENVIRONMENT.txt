@@ -1,0 +1,71 @@
+Carton
+=======================
+http://kappataumu.com/articles/modern-perl-toolchain-for-web-apps.html
+
+https://metacpan.org/pod/Mojolicious::Plugin::ForkCall
+https://metacpan.org/pod/Mojo::IOLoop::ReadWriteFork
+https://metacpan.org/pod/Mojolicious::Plugin::RequestBase
+https://metacpan.org/pod/Mojolicious::Plugin::Swagger2
+https://metacpan.org/pod/Mojolicious::Plugin::AssetPack
+https://metacpan.org/pod/Mojolicious::Plugin::RenderFile
+https://metacpan.org/pod/Mojolicious::Plugin::FontAwesome4
+https://metacpan.org/pod/Mojolicious::Plugin::MailException
+
+
+Okolina za centos7 development
+==============================
+# perl-DBD-Pg
+# requires "Mojo::Pg", "2.25";
+requires "Mojolicious::Plugin::NYTProf";
+
+# http://sharadchhetri.com/2014/10/04/install-redis-server-centos-7-rhel-7/
+wget -r --no-parent -A 'epel-release-*.rpm' http://dl.fedoraproject.org/pub/epel/7/x86_64/e/
+rpm -Uvh dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-*.rpm
+yum install redis
+yum install openssl-devel
+yum install make gcc-c++ patch
+
+
+git clone https://github.com/tokuhirom/plenv.git ~/.plenv
+echo 'export PATH="$HOME/.plenv/bin:$PATH"' >> ~/.bash_profile
+echo 'eval "$(plenv init -)"' >> ~/.bash_profile
+exec $SHELL -l
+git clone https://github.com/tokuhirom/Perl-Build.git ~/.plenv/plugins/perl-build/
+
+plenv install 5.20.3
+plenv rehash
+plenv global 5.20.3
+plenv install-cpanm
+cpanm Carton
+
+git clone ssh:repo
+cd repo
+carton install --deployment
+
+carton exec morbo -l http://*:3001 bingo.pl
+
+# goto http://192.168.1.10:3001/chat
+
+
+nginx reverse proxy
+/etc/nginx/conf.d/default.conf
+=======================
+	location = /app/bingo {
+		return 302 /app/bingo/;
+	}
+	location /app/bingo/ {
+			proxy_pass http://127.0.0.1:3000/;
+			proxy_http_version 1.1;
+			proxy_set_header Upgrade $http_upgrade;
+			proxy_set_header Connection "upgrade";
+			proxy_set_header Host $host;
+			proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+			proxy_set_header X-Forwarded-Proto $scheme;
+			proxy_read_timeout 86400;
+	}
+
+/etc/nginx/nginx.conf
+(http section)
+=======================
+    server_tokens off;
+#    proxy_pass_header Server;

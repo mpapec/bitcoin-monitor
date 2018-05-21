@@ -1,0 +1,29 @@
+<html>
+  <head>
+    <title>Chat test</title>
+    <script type="text/javascript" src="js/jquery.min.js"></script>
+    <script type="text/javascript" src="js/wsio.js"></script>
+    <script type="text/javascript" src="js/sdate.js"></script>
+    <script type="text/javascript" src="js/ws.js"></script>
+    <style type="text/css">
+      textarea {
+          width: 40em;
+          height:10em;
+      }
+    </style>
+  </head>
+<body>
+
+<h1>WebSocket test</h1>
+
+<p>
+<input type="text" id="msg" />
+<select id="node">
+	<option value="chat">chat
+	<option value="">command to server
+</select>
+</p>
+<textarea id="log" readonly></textarea>
+
+</body>
+</html>
