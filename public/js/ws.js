@@ -1,8 +1,7 @@
 $(function () {
 
 	$('#msg').focus();
-	if (window.LPOLL) { chatlp (); }
-	else { chat (); }
+	chat ();
 });
 
 function chat () {
@@ -15,9 +14,11 @@ function chat () {
 		return 'ws'+ window.location.href.replace(/^[^s\W]+|\w+\/?$/g, "") +"ws/"+ (sessid || "new");
 	};
 	var socket = wsio(myurl);
+    // debug
+    // socket.log = function(msg) { console.log(msg); };
 
 	// server time
-	var serverDate = sdate(socket);
+	// var serverDate = sdate(socket);
 
 	//
 	socket
@@ -30,21 +31,35 @@ function chat () {
 		if (msg.sessid) { sessid = msg.sessid; }
 		socket.flush();
 		// subscribe/enter into 'race1' events
-		socket.emit("enter", "vgames.lotto3");
+		socket.emit("enter", "bch.block");
+		socket.emit("enter", "bch.tx");
+	})
+	.on('bch.block', function(msg){
+		console.log(msg);
+        log('<' + msg.json + '>');
+	})
+	.on('bch.tx', function(msg){
+		console.log(msg);
+        log('[' + msg.json + ']');
 	})
 	// specijalni event - za sve poruke
+/*
 	.on('message', function(msg){
 		console.log(msg);
-		console.log( {serverDate: serverDate.Date(), "serverDate.getTime": serverDate.getTime() } );
+		// console.log( {serverDate: serverDate.Date(), "serverDate.getTime": serverDate.getTime() } );
 	})
+*/
 	.on('error', function(err){
 		console.log(err);
 	})
+/*
 	.on('NextEvent', function(msg){
 		// console.log(msg);
 		console.log((new Date()).toISOString(), msg);
 	})
+*/
 	.on('chat', function(msg){
+        // console.log(msg);
 		if (msg.err) {
 			// greska, treba ponoviti zahtjev ID res._smsid 
 			// (reference:source message id)
@@ -71,16 +86,13 @@ function chat () {
 		}
 	});
 }
-function chatlp () {
-	"use strict";
-	// alert(33);
-}
 
 function log (text) {
 	$('#log').val( $('#log').val() + text + "\n");
 }
 
 /* http://stackoverflow.com/a/2117523/223226 */
+/*
 function UUID () {
 
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -88,3 +100,4 @@ function UUID () {
         return v.toString(16);
     });
 }
+*/

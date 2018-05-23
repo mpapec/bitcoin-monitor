@@ -364,7 +364,8 @@ package App::RedisKurir;
 
         # nadji privatne nodove koji su subscribani na javni $node kanal
         my $nodes = $c->redisRoomSubscriptions(get => $node);
-        $c->wsSend($nodes, $msg);
+        # $c->wsSend($nodes, $msg);
+        $c->wsSend($nodes, { json => $msg, _event => $node });
     }
 
     sub handleRedisMessage {
