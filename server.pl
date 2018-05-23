@@ -21,7 +21,7 @@ IO::Socket::SSL::set_defaults(
         # [
           # 0,
           # '140736362954784',
-          # "/C=--/ST=SomeState/L=SomeCity/O=SomeOrganization/OU=SomeOrganizationalUnit/CN=srv1F.efortuna.ro/emailAddress=root\@srv1F.efortuna.ro/C=--/ST=SomeState/L=SomeCity/O=SomeOrganization/OU=SomeOrganizationalUnit/CN=srv1F.efortuna.ro/emailAddress=root\@srv1F.efortuna.ro",
+          # "/C=--/ST=SomeState/L=SomeCity/O=SomeOrganization/OU=SomeOrganizationalUnit/CN=srv.test.com/emailAddress=root\@srv.test.com/C=--/ST=SomeState/L=SomeCity/O=SomeOrganization/OU=SomeOrganizationalUnit/CN=srv.test.com/emailAddress=root\@srv.test.com",
           # "error:00000015:lib(0):func(0):reason(21)",
           # 63405968,
           # 0
@@ -43,6 +43,7 @@ app->config( hypnotoad => app->cfg->{production} );
 plugin 'DefaultHelpers';
 # https://metacpan.org/pod/Mojolicious::Plugin::JSON::XS (C json parser)
 plugin 'JSON::XS';
+#plugin "SecureCORS";
 
 #
 plugin "App::Helpers";

@@ -11,7 +11,10 @@ function chat () {
 
 	// url ili funkcija koja vraca url
 	var myurl = function () {
-		return 'ws'+ window.location.href.replace(/^[^s\W]+|\w+\/?$/g, "") +"ws/"+ (sessid || "new");
+        var url = "ws://192.168.192.180:3001/ws/new";
+        url = 'ws'+ window.location.href.replace(/^[^s\W]+|\w+\/?$/g, "") +"ws/"+ (sessid || "new");
+        console.log(url);
+		return url;
 	};
 	var socket = wsio(myurl);
     // debug
@@ -35,61 +38,30 @@ function chat () {
 		socket.emit("enter", "bch.tx");
 	})
 	.on('bch.block', function(msg){
-		console.log(msg);
-        log('<' + msg.json + '>');
+        var block = JSON.parse(msg.json).result;
+		console.log(block);
+        // log('<' + msg.json + '>');
 	})
 	.on('bch.tx', function(msg){
-		console.log(msg);
-        log('[' + msg.json + ']');
+        var tx = JSON.parse(msg.json).result;
+		console.log(tx);
+        var values = $.map( tx.vout, function( v, i ) {
+            return v.value;
+        });
+
+        log('['+ tx.txid +' '+ values.join(", ") +' BCH]');
 	})
-	// specijalni event - za sve poruke
-/*
-	.on('message', function(msg){
-		console.log(msg);
-		// console.log( {serverDate: serverDate.Date(), "serverDate.getTime": serverDate.getTime() } );
-	})
-*/
 	.on('error', function(err){
 		console.log(err);
 	})
-/*
-	.on('NextEvent', function(msg){
-		// console.log(msg);
-		console.log((new Date()).toISOString(), msg);
-	})
-*/
-	.on('chat', function(msg){
-        // console.log(msg);
-		if (msg.err) {
-			// greska, treba ponoviti zahtjev ID res._smsid 
-			// (reference:source message id)
-			console.log(msg.err);
-			return;
-		}
-		log('[' + msg._snode + '] ' + msg.text); 
-	})
 	;
 
-
-	$('#msg').keydown(function (e) {
-		if (e.keyCode == 13 && $('#msg').val()) {
-
-			var node = $("#node").val();
-			var msg = (!node)
-				? JSON.parse( $('#msg').val() )
-				: {
-					text: $('#msg').val(),
-					hms: (new Date).getTime()
-				};
-			socket.emit(node, msg);
-			$('#msg').val('');
-		}
-	});
 }
 
 function log (text) {
-	$('#log').val( $('#log').val() + text + "\n");
+       $('#log').val( $('#log').val() + text + "\n");
 }
+
 
 /* http://stackoverflow.com/a/2117523/223226 */
 /*

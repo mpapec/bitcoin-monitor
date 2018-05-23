@@ -57,8 +57,8 @@
         my ($list, $val) = @r;
         $redis->lpush("in:$list", $val);
 
-        push @r, unpack('H*', $r[-1]);
-        print Dumper \@r;
+        #push @r, unpack('H*', $r[-1]);
+        #print Dumper \@r;
     }
 
     # END
