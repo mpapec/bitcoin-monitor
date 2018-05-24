@@ -1,3 +1,14 @@
+ABC node
+=======================
+cat .bitcoin/bitcoin.conf
+rpcauth=bch:58e67a69710bd46141c7a2bb9f68584$2ec3590bea1c232daf0abd402d0f8b4022ac5749cb9878ff7bbf5f93a766d391
+
+cat runabc
+./bitcoind -maxconnections=300 -prune=4000 -server -rpcthreads=20 -zmqpubhashtx=tcp://*:28332 -zmqpubhashblock=tcp://*:28332
+# -rpcallowip=0.0.0.0/0 
+
+
+
 Carton
 =======================
 http://kappataumu.com/articles/modern-perl-toolchain-for-web-apps.html
