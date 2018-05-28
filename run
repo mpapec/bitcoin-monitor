@@ -1,1 +1,1 @@
-hypnotoad -f server.pl
+hypnotoad -f server.pl > /tmp/server.log 2>&1

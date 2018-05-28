@@ -1,9 +1,8 @@
 <html>
   <head>
-    <title>Chat test</title>
+    <title>Bitcoin monitor</title>
     <script type="text/javascript" src="js/jquery.min.js"></script>
     <script type="text/javascript" src="js/wsio.js"></script>
-    <script type="text/javascript" src="js/ws.js"></script>
     <style type="text/css">
       textarea {
           width: 60em;
@@ -17,5 +16,68 @@
 
 <textarea id="log" readonly></textarea>
 
+<script>
+$(function () {
+
+    // $('#msg').focus();
+    chat ();
+});
+
+function chat () {
+    "use strict";
+
+    var sessid;
+
+    // url ili funkcija koja vraca url
+    var myurl = function () {
+        var url = "ws://192.168.192.180:3001/ws/new";
+        url = 'ws'+ window.location.href.replace(/^[^s\W]+|\w+\/?$/g, "") +"ws/"+ (sessid || "new");
+        console.log(url);
+        return url;
+    };
+    var socket = wsio(myurl);
+
+    // server time
+    // var serverDate = sdate(socket);
+
+    //
+    socket
+    // pri uspostavi ws-a
+    .on('connect', function(){
+        socket.emit("getSession");
+    })
+    // store sessid, flush queue, enter/subscribe..
+    .on('session', function(msg){
+        if (msg.sessid) { sessid = msg.sessid; }
+        socket.flush();
+        // subscribe/enter into  events
+        socket.emit("enter", "bch.block");
+        socket.emit("enter", "bch.tx");
+    })
+    .on('bch.block', function(msg){
+        var block = JSON.parse(msg.json).result;
+        console.log(block);
+        log('{'+ block.hash +' '+ block.height +' height}'); // block.tx[]
+    })
+    .on('bch.tx', function(msg){
+        var tx = JSON.parse(msg.json).result;
+        console.log(tx);
+        var values = $.map( tx.vout, function( v, i ) {
+            return v.value;
+        });
+
+        log('['+ tx.txid +' '+ values.join(", ") +' BCH]');
+    })
+    .on('error', function(err){
+        console.log(err);
+    })
+    ;
+
+}
+
+function log (text) {
+    $('#log').val( text+"\n"+ $('#log').val());
+}
+</script>
 </body>
 </html>
