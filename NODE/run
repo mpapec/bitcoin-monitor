@@ -1,0 +1,1 @@
+./bitcoind -maxconnections=300 -prune=4000 -server

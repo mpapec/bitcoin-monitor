@@ -1,0 +1,3 @@
+#./bitcoind -maxconnections=300 -prune=4000 -server -rpcthreads=20 -zmqpubhashtx=tcp://*:28332 -zmqpubhashblock=tcp://*:28332
+# -rpcthreads=20 
+./bitcoind -maxconnections=100 -prune=4000 -server -daemon -zmqpubhashtx=tcp://127.0.0.1:28332 -zmqpubhashblock=tcp://127.0.0.1:28332
