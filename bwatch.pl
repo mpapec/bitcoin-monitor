@@ -127,7 +127,8 @@ sub queueWatcher {
 
         my ($prefix, $result, $errcode) = $get{ $list }->($val);
         if ($errcode) {
-            warn "bitcoin rpc query failed ($errcode)\n";
+            warn "bitcoin rpc query failed ($errcode)\n", Dumper $aref;
+            next if $errcode == 500;
             push @queue, [ $aref ];
             sleep 1; redo;
         }

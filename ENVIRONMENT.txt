@@ -59,7 +59,7 @@ carton exec morbo -l http://*:3001 bingo.pl
 
 
 nginx reverse proxy
-/etc/nginx/conf.d/default.conf
+/etc/nginx/default.d/default.conf
 =======================
 	location = /app/bingo {
 		return 302 /app/bingo/;

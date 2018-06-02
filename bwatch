@@ -1,0 +1,2 @@
+perl bwatch.pl > /tmp/bwatch 2>&1
+
