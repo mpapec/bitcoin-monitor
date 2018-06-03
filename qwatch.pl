@@ -2,8 +2,8 @@
     use warnings;
     use Data::Dumper;
 
-    use ZMQ::FFI;
-    use ZMQ::FFI::Constants qw(ZMQ_SUB);
+    # use ZMQ::FFI;
+    # use ZMQ::FFI::Constants qw(ZMQ_SUB);
     STDOUT->autoflush();
     STDERR->autoflush();
 
@@ -12,6 +12,8 @@
     #  use JSON::XS; # imports encode_json, decode_json
 
     my $cfg = do "server.conf";
+    $Bitcoind::CFG{tx_param} = $cfg->{bitcoind}{RPC};
+    # print Dumper \%Bitcoind::CFG; exit;
 
     sub fasync(&) {
       my ($worker) = @_;
@@ -36,26 +38,6 @@
         ;
     }
     
-    {
-    my $context;
-    sub connectZMQ {
-        my ($filter) = @_;
-        $filter //= "";
-        #
-        $context = ZMQ::FFI->new();
-        my $subscriber = $context->socket(ZMQ_SUB);
-        ##$subscriber->connect("tcp://192.168.192.223:28332");
-        $subscriber->connect("tcp://127.0.0.1:28332");
-
-        $subscriber->subscribe($filter);
-        return $subscriber;
-    }}
-
-    fasync {
-        $0 = "zmqWatcher";
-        zmqWatcher();
-    };
-
     while (1) {
         # fork worker
         my $worker =  fasync { $0 = "queueWatcher"; queueWatcher(); };
@@ -64,55 +46,6 @@
     # END
     # --------
     
-sub zmqWatcher {
-    my $redis;
-    my $zmq;
-    my @queue;
-
-    my %counter;
-    while (1) {
-        $redis ||= connectRedis();
-        $zmq ||= connectZMQ();
-
-        my @r;
-        my $ok = eval {
-            @r = $zmq->recv_multipart();
-            1;
-        };
-        if (!$ok) {
-            warn "zmq to bitcoin node failed\n";
-            $zmq = undef;
-            select(undef, undef, undef, 0.15); redo;
-        }
-        # $_ = unpack('H*', $_) for @r[1, 2];
-        $r[1] = unpack('H*', $r[1]);
-        $r[2] = unpack('I', $r[2]);
-        warn "Pobegel mi je barem jedan $r[0] => [$counter{$r[0]} != $r[2]]" if ++$counter{$r[0]} != $r[2];
-        $counter{$r[0]} = $r[2];
-
-        push @queue, \@r;
-        print Dumper \@r;
-
-        #
-        while (@queue) {
-            my $v = shift @queue;
-            
-            my ($list, $val) = @$v;
-            my $ok = eval {
-                $redis->lpush("in:$list", $val);
-                1;
-            };
-            if (!$ok) {
-                warn "redis lpush failed\n";
-                unshift @queue, $v;
-                $redis = undef;
-                # sleep 1;
-                last;
-            }
-        }
-    }
-}
-
 sub queueWatcher {
 
     my @keys = qw(in:hashtx in:hashblock);
@@ -137,7 +70,7 @@ sub queueWatcher {
         my ($list, $val) = @$aref;
         # print Dumper [$list, $val]; exit;
 
-        my ($prefix, $result, $errcode) = $get{ $list }->($val);
+        my ($prefix, $res, $errcode) = $get{ $list }->($val);
         if ($errcode) {
             warn "bitcoin rpc query failed ($errcode)\n", Dumper $aref;
             next if $errcode == 500;
@@ -145,11 +78,13 @@ sub queueWatcher {
             sleep 1; redo;
         }
         # $result or next;
+        my $result = $res->body;
 
         my $ok = eval {
-            $redis->setex("$prefix:$val", 15*60, $result);
             $redis->publish("bch.$prefix", $result);
-            # $redis->lpush("in:$list", $val);
+            $redis->setex("$prefix:$val", 15*60, $result);
+            # del hset on new block
+            $redis->del("confirmations") if $list =~ /block/;
             1;
         };
         if (!$ok) {
@@ -157,14 +92,63 @@ sub queueWatcher {
             push @queue, [ $aref ];
             $redis = undef;
             sleep 1; redo;
-            # sleep 1;
-            # $redis = connectRedis();
-            # redo;
+        }
+
+        # print Dumper
+        my $href = $res->json->{result};
+        my $vout = $href->{vout} or next;
+        my $txid = $val;
+        for my $out (@$vout) {
+
+            my $arr = $out->{scriptPubKey}{addresses} or next;
+            my ($addr) = @$arr;
+            $addr =~ s/^ \w+://x;
+
+     $redis->hset("watching:xpub", $addr, 44);
+     $redis->zadd("watching:addr", time(), $addr);
+
+            checkIncomingOutputAddress($redis, $txid, $addr, $out);
+#            my $xpub_sha = $redis->hget("watching:xpub", $addr) or next;
+#print Dumper [ $xpub_sha ];
+#            my $idx = $out->{n};
+#            my $value = $out->{value};
+
+#            my $multi = $redis->multi;
+#            $multi->hdel("watching:xpub", $addr);
+#            $multi->zrem("watching:addr", $addr);
+#            $redis->hset("confirmations", $addr, 0);
+
+#            $multi->hincrbyfloat("xpub:$xpub_sha", balance => $value);
+            #
+#            $multi->lpush("watch:$addr", "$txid:$idx:$value");
+#            $multi->expire("watch:$addr", 24*3600);
+#print Dumper
+#            $multi->exec;
         }
         # print Dumper \@r;
     }
 }
 
+sub checkIncomingOutputAddress {
+    my ($redis, $txid, $addr, $out) = @_;
+
+            my $xpub_sha = $redis->hget("watching:xpub", $addr) or return;
+print Dumper [ $xpub_sha ];
+            my $idx = $out->{n};
+            my $value = $out->{value};
+
+            my $multi = $redis->multi;
+            $multi->hdel("watching:xpub", $addr);
+            $multi->zrem("watching:addr", $addr);
+            $redis->hset("confirmations", $addr, 0);
+
+            $multi->hincrbyfloat("xpub:$xpub_sha", balance => $value);
+            #
+            $multi->lpush("watch:$addr", "$txid:$idx:$value");
+            $multi->expire("watch:$addr", 24*3600);
+print Dumper
+            $multi->exec;
+}
 
 BEGIN {
 package Bitcoind;
@@ -175,7 +159,7 @@ package Bitcoind;
           # agent => "Apache-HttpClient/4.1.1 (java 1.5)",
           tx_param => [
             # 'http://bch:C4Z5CHVtGmlzwX8-M-iAQ4C5whL_YGnfVN5A3zCvS14=@192.168.192.223:8332',
-            'http://bch:C4Z5CHVtGmlzwX8-M-iAQ4C5whL_YGnfVN5A3zCvS14=@127.0.0.1:8332',
+            # 'http://bch:C4Z5CHVtGmlzwX8-M-iAQ4C5whL_YGnfVN5A3zCvS14=@127.0.0.1:8332',
             {
                 'Content-Type' => 'application/json',
             },
@@ -193,7 +177,8 @@ package Bitcoind;
         );
         my $res = $tx->success;
 
-        return $res ? ($res->body, undef) : (undef, $tx->error->{code});
+        # return $res ? ($res->body, undef) : (undef, $tx->error->{code});
+        return $res ? ($res, undef) : (undef, $tx->error->{code});
         # if (!$res) { warn "$_->{message} ($_->{code})" for $tx->error; return undef }
         # warn Dumper $res->to_string if $Debug;
 

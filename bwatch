@@ -1,2 +1,2 @@
-perl bwatch.pl > /tmp/bwatch 2>&1
+perl bwatch.pl > /tmp/bwatch.log 2>&1
 
