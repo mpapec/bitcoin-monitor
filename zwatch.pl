@@ -2,12 +2,15 @@
     use warnings;
     use Data::Dumper;
 
+    use lib 'lib';
+    use XUtil 'fasync';
+
     use ZMQ::FFI;
     use ZMQ::FFI::Constants qw(ZMQ_SUB);
     STDOUT->autoflush();
     STDERR->autoflush();
 
-#    use Mojo::Base -strict;
+    # use Mojo::Base -strict;
     use Mojo::Redis2;
     #  use JSON::XS; # imports encode_json, decode_json
 
@@ -35,8 +38,29 @@
         return $subscriber;
     }}
 
-    $0 = "zmqWatcher";
-    zmqWatcher();
+    use File::Basename;
+    if (1) {
+        $0 = "zmqWatcher"; zmqWatcher();
+        my $file = dirname(__FILE__) ."/". __FILE__;
+        exec "perl", $file;
+        exit;
+    }
+
+    my $zmqw;
+    my $txcatchup;
+    while (1) {
+        # fork worker
+        if (!$zmqw) {
+            warn "ide novi zmq watcher\n";
+            $zmqw = fasync { $0 = "zmqWatcher"; zmqWatcher(); };
+            # TODO: fork to catchup with TX
+        }
+        $zmqw->() or $zmqw = undef;
+        #print Dumper $zmqw->();
+
+        sleep 1;
+    }
+
     # END
     # --------
     
@@ -44,6 +68,11 @@ sub zmqWatcher {
     my $redis;
     my $zmq;
     my @queue;
+
+    $redis ||= connectRedis();
+    # catch up with tx
+    $redis->lpush("zmqrestart", time());
+    $redis->ltrim("zmqrestart", 0, 0);
 
     my %counter;
     while (1) {
@@ -63,7 +92,11 @@ sub zmqWatcher {
         # $_ = unpack('H*', $_) for @r[1, 2];
         $r[1] = unpack('H*', $r[1]);
         $r[2] = unpack('I', $r[2]);
-        warn "Pobegel mi je barem jedan $r[0] => [$counter{$r[0]} != $r[2]]" if ++$counter{$r[0]} != $r[2];
+        if ($counter{$r[0]} and $counter{$r[0]}+1 != $r[2]) {
+            warn "I've missed at least one $r[0] => [$counter{$r[0]} != $r[2]]\n";
+            # $zmq->close; $zmq = undef;
+            return;
+        }
         $counter{$r[0]} = $r[2];
 
         push @queue, \@r;
