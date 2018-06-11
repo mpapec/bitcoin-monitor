@@ -223,7 +223,7 @@ sub waitNewXpub {
     while (1) {
         my $xpub = $redis->brpop("xpub:new", 0);
         # print Dumper $xpub; exit;
-        push @jobs, fasync { $0 = "new:$_"; generateAddresses($_); } for $xpub->[1];
+        push @jobs, fasync { $0 = "new:$_"; generateAddresses($_, 8); } for $xpub->[1];
 
         @jobs = grep { $_->() } @jobs;
     }
@@ -239,7 +239,7 @@ sub checkUnusedAddresses {
 
 sub generateAddresses {
 
-    my ($xpub) = @_;
+    my ($xpub, $howmany) = @_;
 
     use BitcoinCash;
     my $redis = connectRedis();
@@ -257,7 +257,10 @@ sub generateAddresses {
     my $n = $opt{minaddr} - $llen;
     return if $n <= 0;
 
-    $n = $opt{generate} if $n < $opt{generate};
+    if ($howmany) { $n = $howmany }
+    else {
+        $n = $opt{generate} if $n < $opt{generate};
+    }
     #print Dumper \%opt, $llen; exit;
     for (1 .. $n) {
         my $idx = $redis->hincrby($xpub_hash, "index", 1);

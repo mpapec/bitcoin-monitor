@@ -106,6 +106,33 @@ websocket '/ws/:sessid' => sub {
     $c->registerWsEvents;
 };
 
+get '/new_payment/:xpub' => sub {
+    my ($c) = @_;
+
+    my $xpub = $c->stash("xpub");
+    $c->iodelay(
+        sub {
+            my ($d) = @_;
+            $c->redis->sadd("xpub:all", $xpub, $d->begin);
+        },
+        sub {
+            my ($d, $err, $rval) = @_;
+            # new xpub
+            $c->redis->lpush("xpub:new", $xpub, $d->begin) if $rval;
+            $c->redis->brpop("unused:$xpub", 0, $d->begin);
+        },
+        sub {
+            my ($d, $err, $rval) = @_;
+            $rval = pop;
+
+            $c->render(json => {
+                # xpub => $xpub,
+                err => $err,
+                address => $rval->[1],
+            });
+        },
+    );
+};
 
 get '/__status' => sub {
     my ($c) = @_;
