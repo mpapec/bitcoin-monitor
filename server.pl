@@ -10,6 +10,7 @@ use Mojo::Redis2;
 # use Mojo::Pg;
 # use Moops; use utf8;
 # BEGIN { $ENV{MOJO_USERAGENT_DEBUG} =1; }
+use Digest::SHA 'sha256_hex';
 
 use IO::Socket::SSL;
 IO::Socket::SSL::set_defaults(
@@ -110,6 +111,8 @@ get '/new_payment/:xpub' => sub {
     my ($c) = @_;
 
     my $xpub = $c->stash("xpub");
+    my $xpub_sha = sha256_hex($xpub);
+    my $addr;
     $c->iodelay(
         sub {
             my ($d) = @_;
@@ -124,11 +127,21 @@ get '/new_payment/:xpub' => sub {
         sub {
             my ($d, $err, $rval) = @_;
             $rval = pop;
+            $addr = $rval->[1];
+
+            $c->redis
+                ->hset("watching:xpub", $addr, $xpub_sha, $d->begin)
+                ->zadd("watching:addr", time(), $addr, $d->begin)
+            ;
+        },
+        sub {
+            my ($d, $err, $rval) = @_;
+            # $rval = pop;
 
             $c->render(json => {
                 # xpub => $xpub,
                 err => $err,
-                address => $rval->[1],
+                address => $addr,
             });
         },
     );
