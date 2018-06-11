@@ -5,6 +5,9 @@
     use lib 'lib';
     use XUtil 'fasync';
 
+    use Fcntl ':flock';
+    flock(DATA, LOCK_EX|LOCK_NB) or die "$0 already running!\n";
+
     use ZMQ::FFI;
     use ZMQ::FFI::Constants qw(ZMQ_SUB);
     STDOUT->autoflush();
@@ -69,10 +72,7 @@ sub zmqWatcher {
     my $zmq;
     my @queue;
 
-    $redis ||= connectRedis();
-    # catch up with tx
-    $redis->lpush("zmqrestart", time());
-    $redis->ltrim("zmqrestart", 0, 0);
+    # $redis ||= connectRedis();
 
     my %counter;
     while (1) {
@@ -94,6 +94,10 @@ sub zmqWatcher {
         $r[2] = unpack('I', $r[2]);
         if ($counter{$r[0]} and $counter{$r[0]}+1 != $r[2]) {
             warn "I've missed at least one $r[0] => [$counter{$r[0]} != $r[2]]\n";
+            # catch up with tx
+            $redis->lpush("zmqrestart", time() ."-". ($r[2] - $counter{$r[0]}));
+            # $redis->ltrim("zmqrestart", 0, 0);
+
             # $zmq->close; $zmq = undef;
             return;
         }
@@ -123,3 +127,5 @@ sub zmqWatcher {
     }
 }
 
+__DATA__
+44
