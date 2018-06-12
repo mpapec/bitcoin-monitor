@@ -107,6 +107,40 @@ websocket '/ws/:sessid' => sub {
     $c->registerWsEvents;
 };
 
+get '/payment_info/:addr' => sub {
+    my ($c) = @_;
+
+    $c->inactivity_timeout(5*60);
+
+    my $addr = $c->stash("addr");
+    my $k = "check:$addr";
+    # $c->log->debug("k : $k");
+
+    $c->iodelay(
+        sub {
+            my ($d) = @_;
+
+            $c->redis
+                ->brpoplpush($k, $k, 0, $d->begin)
+                ->hget("confirmations", $addr, $d->begin);
+        },
+        # TODO:request node info if confirmation is undef
+        sub {
+            my ($d, $err, $utxo, undef, $confirmations) = @_;
+
+            my %hash;
+            @hash{qw( txid idx value )} = split /:/, $utxo;
+            $c->render(json => $err ? $err : {
+                #
+                %hash,
+                confirmations => $confirmations,
+                # x=>\@_
+            });
+        },
+    );
+
+};
+
 get '/new_payment/:xpub' => sub {
     my ($c) = @_;
 
