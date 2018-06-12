@@ -265,7 +265,13 @@ sub generateAddresses {
     for (1 .. $n) {
         my $idx = $redis->hincrby($xpub_hash, "index", 1);
 
-        my $addr = BitcoinCash::getaddress($xpub, $idx);
+        my $addr = eval { BitcoinCash::getaddress($xpub, $idx) };
+        # invalid xpub
+        if (!$addr) {
+            $redis->srem("xpub:all", $xpub);
+            $redis->lpush("unused:$xpub", "err:cant_generate_address");
+            die "$@\n";
+        }
         $addr =~ s/^\w+://;
         $redis->lpush("unused:$xpub", $addr);
     }

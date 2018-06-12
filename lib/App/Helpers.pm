@@ -66,15 +66,28 @@ package App::Helpers;
         my ($c, @steps) = @_;
 
         push @steps, sub {
-            shift @_;
+            #shift @_;
+            # my @arg = @_;
+            # if (ref($arg[0]) !~ /::/) { unshift @arg, "iodelay last step" }
+            shift if ref($_[0]) =~ /::/;
+
             my ($err) = @_;
+
             $c->log->debug("iodelay catched error:". $c->dumper($err)) if $err;
             $cb->($c, @_);
         };
 
         # zadnji korak u @steps i catch func su isti
-        my $delay = Delay2->new;
+        #my $delay = Delay2->new;
+        my $delay = Mojo::IOLoop::Delay->new;
+
+        ## sub _instance { ref $_[0] ? $_[0] : $_[0]->singleton }
+        ##  my $delay = Mojo::IOLoop::Delay->new;
+        ##  weaken $delay->ioloop(_instance(shift))->{ioloop};
+        ##  return @_ ? $delay->steps(@_) : $delay;
+
         weaken $delay->ioloop(Mojo::IOLoop->singleton)->{ioloop};
+        #weaken $delay->ioloop(ref $c ? $c : $c->singleton)->{ioloop};
         return @steps ? $delay->steps(@steps)->catch($steps[-1]) : $delay;
     }
 

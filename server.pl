@@ -127,7 +127,10 @@ get '/new_payment/:xpub' => sub {
         sub {
             my ($d, $err, $rval) = @_;
             $rval = pop;
-            $addr = $rval->[1];
+            my $tmp = $rval->[1];
+
+            if ($tmp =~ s/^err://) { die { err => $tmp }  }
+            $addr = $tmp;
 
             $c->redis
                 ->hset("watching:xpub", $addr, $xpub_sha, $d->begin)
@@ -138,13 +141,14 @@ get '/new_payment/:xpub' => sub {
             my ($d, $err, $rval) = @_;
             # $rval = pop;
 
-            $c->render(json => {
+            $c->render(json => $err ? $err : {
                 # xpub => $xpub,
-                err => $err,
                 address => $addr,
+                # x=>\@_
             });
         },
-    );
+    )
+    ;
 };
 
 get '/__status' => sub {
