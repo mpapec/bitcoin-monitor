@@ -10,6 +10,8 @@ use Mojo::Redis2;
 # use Mojo::Pg;
 # use Moops; use utf8;
 # BEGIN { $ENV{MOJO_USERAGENT_DEBUG} =1; }
+# BEGIN { $ENV{MOJO_REDIS_DEBUG} =1; }
+
 use Digest::SHA 'sha256_hex';
 
 use IO::Socket::SSL;
@@ -91,6 +93,13 @@ under sub {
 get '/chat' => 'chat';
 get '/chatlp' => 'chatlp';
 
+# any '/:path' => [ path => qr/favico/i ] => sub { shift->render(json => {}); };
+hook before_dispatch => sub {
+    my ($c) = @_;
+    $c->render(text => '/-o-/')
+        if $c->req->url->path->to_route =~ /favico/;
+};
+
 # patch '/getPatch' => sub { };
 # options '/getOptions' => sub { };
 
@@ -113,26 +122,33 @@ get '/payment_info/:addr' => sub {
     $c->inactivity_timeout(5*60);
 
     my $addr = $c->stash("addr");
+    # return if lc($addr) =~ /^favico/;
+
+    #TODO: is addr even in watch list?
     my $k = "check:$addr";
     # $c->log->debug("k : $k");
 
+    my $redis = $c->redisnew;
     $c->iodelay(
         sub {
             my ($d) = @_;
 
-            $c->redis
-                ->brpoplpush($k, $k, 0, $d->begin)
-                ->hget("confirmations", $addr, $d->begin);
+            $redis->()
+                ->brpoplpush($k, $k, 5*60, $d->begin)
+                ->hget("confirmations", $addr, $d->begin)
+            ;
         },
         # TODO:request node info if confirmation is undef
         sub {
             my ($d, $err, $utxo, undef, $confirmations) = @_;
 
+            $redis->("close");
             my %hash;
-            @hash{qw( txid idx value )} = split /:/, $utxo;
+            @hash{qw( txid idx value )} = split /:/, ref($utxo) ? '' : $utxo;
             $c->render(json => $err ? $err : {
                 #
                 %hash,
+                # u => $utxo,
                 confirmations => $confirmations,
                 # x=>\@_
             });
@@ -147,26 +163,31 @@ get '/new_payment/:xpub' => sub {
     my $xpub = $c->stash("xpub");
     my $xpub_sha = sha256_hex($xpub);
     my $addr;
+
+    my $redis = $c->redisnew;
+
     $c->iodelay(
         sub {
             my ($d) = @_;
-            $c->redis->sadd("xpub:all", $xpub, $d->begin);
+            $redis->()->sadd("xpub:all", $xpub, $d->begin);
         },
         sub {
             my ($d, $err, $rval) = @_;
             # new xpub
-            $c->redis->lpush("xpub:new", $xpub, $d->begin) if $rval;
-            $c->redis->brpop("unused:$xpub", 0, $d->begin);
+            $redis->()->lpush("xpub:new", $xpub, $d->begin) if $rval;
+            $redis->()->brpop("unused:$xpub", 10, $d->begin);
         },
         sub {
             my ($d, $err, $rval) = @_;
             $rval = pop;
-            my $tmp = $rval->[1];
+            # $c->log->debug($c->dumper("@_"));
+            my $tmp = ref($rval) ? $rval->[1]//"" : "";
+            # $d->pass, return if !$tmp;
 
             if ($tmp =~ s/^err://) { die { err => $tmp }  }
-            $addr = $tmp;
+            $addr = $tmp or return $d->pass;
 
-            $c->redis
+            $redis->()
                 ->hset("watching:xpub", $addr, $xpub_sha, $d->begin)
                 ->zadd("watching:addr", time(), $addr, $d->begin)
             ;
@@ -175,6 +196,7 @@ get '/new_payment/:xpub' => sub {
             my ($d, $err, $rval) = @_;
             # $rval = pop;
 
+            $redis->("close");
             $c->render(json => $err ? $err : {
                 # xpub => $xpub,
                 address => $addr,
