@@ -17,6 +17,7 @@ package App::RedisKurir;
 
         # vraca redis handler
         $app->helper( redis => \&redis );
+        $app->helper( redisnew => \&redisnew );
         # postavi listenere i ostale event handlere vezane za redis
         $app->helper( registerRedisEvents => \&registerRedisEvents );
 
@@ -163,6 +164,22 @@ package App::RedisKurir;
         }
 
         return $redis;
+    }
+
+    sub redisnew {
+        my ($c) = @_;
+
+            my $cfg = $c->cfg;
+            state %redis;
+            state $i;
+            my $j = ++$i;
+            $redis{$j} = Mojo::Redis2
+                ->new(url => $cfg->{"Mojo::Redis2"})
+                ->protocol_class("Protocol::Redis::XS")
+            ;
+        return sub {
+            return @_ ? delete $redis{$j} : $redis{$j};
+        };
     }
 
     # subscribe to redis channels
@@ -492,7 +509,7 @@ package App::RedisKurir;
             pmessage => sub {
                 my ($redis, $msg, $node, $pattern) = @_;
 
-                $c->log->debug("Incoming redis pmessage for node $node: $msg");
+                ##$c->log->debug("Incoming redis pmessage for node $node: $msg");
 
                 $c->handleRedisRoomMessage($node, $msg, $pattern);
             },
