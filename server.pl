@@ -119,12 +119,12 @@ websocket '/ws/:sessid' => sub {
 get '/payment_info/:addr' => sub {
     my ($c) = @_;
 
-    $c->inactivity_timeout(5*60);
+    $c->inactivity_timeout(15*60);
 
     my $addr = $c->stash("addr");
     # return if lc($addr) =~ /^favico/;
 
-    #TODO: is addr even in watch list?
+    #TODO+: is addr even in watch list?
     my $k = "check:$addr";
     # $c->log->debug("k : $k");
 
@@ -133,10 +133,25 @@ get '/payment_info/:addr' => sub {
         sub {
             my ($d) = @_;
 
+            # valid address should be either in $k or watch hash
             $redis->()
-                ->brpoplpush($k, $k, 5*60, $d->begin)
-                ->hget("confirmations", $addr, $d->begin)
+                ->hget("watching:xpub", $addr, $d->begin)
+                ->rpoplpush($k, $k, $d->begin)
             ;
+        },
+        sub {
+            my ($d, undef, $isWatched, undef, $utxo) = @_;
+            # shift; $c->log->debug($c->dumper(\@_));
+
+            die { err => "no_such_address" } if !$isWatched and !$utxo;
+
+            if ($utxo) {
+                $d->pass("", $utxo);
+            }
+            else {
+                $redis->()->brpoplpush($k, $k, 5*60, $d->begin);
+            }
+            $redis->()->hget("confirmations", $addr, $d->begin);
         },
         # TODO:request node info if confirmation is undef
         sub {
@@ -149,7 +164,7 @@ get '/payment_info/:addr' => sub {
                 #
                 %hash,
                 # u => $utxo,
-                confirmations => $confirmations,
+                confirmations => $confirmations // 0,
                 # x=>\@_
             });
         },

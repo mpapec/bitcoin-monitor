@@ -173,6 +173,8 @@ package App::RedisKurir;
             state %redis;
             state $i;
             my $j = ++$i;
+            $i = 0 if $i >=50_000;
+
             $redis{$j} = Mojo::Redis2
                 ->new(url => $cfg->{"Mojo::Redis2"})
                 ->protocol_class("Protocol::Redis::XS")
