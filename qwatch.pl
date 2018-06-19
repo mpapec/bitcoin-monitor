@@ -124,17 +124,56 @@ sub queueWatcher {
         my $href = $res->json->{result};
         my $vout = $href->{vout} or next;
         my $txid = $val;
+
+        my @outaddr; my $isMyAddr;
         for my $out (@$vout) {
 
             my $arr = $out->{scriptPubKey}{addresses} or next;
+            push @outaddr, (join ",", sort @$arr) ." ". $out->{value};
             my ($addr) = @$arr;
             $addr =~ s/^ \w+://x;
 
-#  $redis->hset("watching:xpub", $addr, 44);
-#  $redis->zadd("watching:addr", time(), $addr);
+            #  $redis->hset("watching:xpub", $addr, 44);
+            #  $redis->zadd("watching:addr", time(), $addr);
 
-            checkIncomingOutputAddress($redis, $txid, $addr, $out);
+            my $found = checkIncomingOutputAddress($redis, $txid, $addr, $out);
+            $isMyAddr ||= !!$found;
         }
+    next; # SKIP double spend check
+
+        # monitor double spend
+        my $outs_sha = sha256_hex( join ";", sort @outaddr );
+        my $vin = $href->{vin};
+# print Dumper
+        my $multi = $redis->multi;
+        for my $in (@$vin) {
+            $in->{txid} or next;
+            my $k = "in:$in->{txid}:$in->{vout}";
+            $multi->hget($k, "outs");
+            $multi->hget($k, "txid");
+            $multi->hsetnx($k, outs => $outs_sha);
+            $multi->hsetnx($k, txid => $txid);
+            $multi->expire($k, 3*3600);
+        }
+        my $resp = $multi->exec;
+        my $i =0;
+        # my @seen = @$vin[ grep { !($i++ %3) and !$resp->[$_] } 0 .. $#$resp ];
+        my $r = $resp;
+        my $nth = 5;
+        my @groups = map [ @$r[$_*$nth .. $_*$nth+$nth-1] ], 0.. @$r/$nth-1;
+# print Dumper \@groups;
+
+        for my $v (@groups) {
+            my $outs = $v->[0] or next;
+            # $outs eq $outs_sha or next;
+            next if $outs eq $outs_sha;
+            next if $v->[1] eq $href->{txid};
+            print Dumper $v->[1], $href;
+        }
+# print Dumper \@seen if @seen;
+# exit;
+        #TODO: provjeri hsetnx rezultate, i spremi DS ako se 'outs' razlikuje
+        #TODO: notifikacija ako $isMyAddr
         # print Dumper \@r;
     }
 }
@@ -160,6 +199,8 @@ sub checkIncomingOutputAddress {
             my $k = "check:$addr";
             $multi->lpush($k, "$txid:$idx:$value");
             $multi->expire($k, 24*3600);
+            # txid => addr lookup
+            $multi->setex("tx2a:$txid", 24*3600, $addr);
             # print Dumper
             return $multi->exec;
 }
