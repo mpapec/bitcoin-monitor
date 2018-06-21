@@ -9,8 +9,6 @@
     use Fcntl ':flock';
     flock(DATA, LOCK_EX|LOCK_NB) or die "$0 already running!\n";
 
-    # use ZMQ::FFI;
-    # use ZMQ::FFI::Constants qw(ZMQ_SUB);
     STDOUT->autoflush();
     STDERR->autoflush();
 
@@ -88,10 +86,10 @@ sub queueWatcher {
         }
         
         my ($list, $val) = @$aref;
+        my $isBlock = $list eq "in:hashblock";
         # print Dumper [$list, $val]; exit;
 
-        # my ($prefix, $res, $errcode) = $get{ $list }->($val);
-        my ($prefix, $res, $errcode) = get( $list, $val );
+        my ($prefix, $res, $errcode) = $isBlock ? qw(block) : get( $list, $val );
         if ($errcode) {
             next if $errcode == 500;
             warn "bitcoin rpc query failed ($errcode)\n", Dumper $aref;
@@ -99,12 +97,11 @@ sub queueWatcher {
             sleep 1; redo;
         }
         # $result or next;
-        my $result = $res->body;
+        my $result = $isBlock ? $val : $res->body;
 
         my $ok = eval {
             $redis->publish("bch.$prefix", $result);
-            # $redis->setex("$prefix:$val", 2*3600, $result);
-            if ($list =~ /block/) {
+            if ($isBlock) {
                 # del hset on new block
                 $redis->del("confirmations");
             }
@@ -122,6 +119,7 @@ sub queueWatcher {
 
         # print Dumper
         my $href = $res->json->{result};
+        # samo tx, bez blokova
         my $vout = $href->{vout} or next;
         my $txid = $val;
 
