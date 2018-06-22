@@ -41,12 +41,12 @@
         $xpw->() or $xpw = undef;
 
         # watch existing unused xpub addresses and add when needed
-        $cuw ||= fasync { $0 = "checkUnusedAddresses"; checkUnusedAddresses(); sleep 5; };
+        $cuw ||= fasync { $0 = "checkUnusedAddresses"; checkUnusedAddresses(); sleep 15; };
         $cuw->() or $cuw = undef;
 
         # watch if ZMQ for node is restarted
-        $zrw ||= fasync { $0 = "zmqRestart"; zmqRestart(); };
-        $zrw->() or $zrw = undef;
+        ##$zrw ||= fasync { $0 = "zmqRestart"; zmqRestart(); };
+        ##$zrw->() or $zrw = undef;
 
         sleep 1;
     }
@@ -71,7 +71,7 @@ sub get {
 
 sub queueWatcher {
 
-    my @keys = qw(in:hashtx in:hashblock);
+    my @keys = qw(in:hashblock in:hashtx);
 
     my $redis;
     my @queue;
@@ -90,6 +90,7 @@ sub queueWatcher {
         # print Dumper [$list, $val]; exit;
 
         my ($prefix, $res, $errcode) = $isBlock ? qw(block) : get( $list, $val );
+        # if ($errcode or (!$isBlock and !$res)) {
         if ($errcode) {
             next if $errcode == 500;
             warn "bitcoin rpc query failed ($errcode)\n", Dumper $aref;
@@ -118,6 +119,7 @@ sub queueWatcher {
         }
 
         # print Dumper
+        next if $isBlock;
         my $href = $res->json->{result};
         # samo tx, bez blokova
         my $vout = $href->{vout} or next;
@@ -345,7 +347,8 @@ package Bitcoind;
         my $res = $tx->success;
 
         # return $res ? ($res->body, undef) : (undef, $tx->error->{code});
-        return $res ? ($res, undef) : (undef, $tx->error->{code});
+        return $res ? ($res, undef) : (undef, $tx->error->{code} // -1);
+
         # if (!$res) { warn "$_->{message} ($_->{code})" for $tx->error; return undef }
         # warn Dumper $res->to_string if $Debug;
 
