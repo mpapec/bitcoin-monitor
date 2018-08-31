@@ -42,8 +42,8 @@ sub nodeWatcher {
 
     open my $log, ">", "$ENV{HOME}/.bitcoin/debug.log";
     my $pid = open my $fh, "-|", qw(
-	./bitcoind -minrelaytxfee=0.00000001 -debug=mempool -debug=mempoolrej -debug=zmq -printtoconsole
-	-maxconnections=300 -prune=4000 -server -zmqpubhashtx=tcp://127.0.0.1:28332 -zmqpubhashblock=tcp://127.0.0.1:28332
+        ./bitcoind -minrelaytxfee=0.00000001 -debug=mempool -debug=mempoolrej -debug=zmq -printtoconsole -logips
+        -maxconnections=3000 -prune=4000 -server -zmqpubhashtx=tcp://127.0.0.1:28332 -zmqpubhashblock=tcp://127.0.0.1:28332
     );
     $log->autoflush();
 
